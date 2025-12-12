@@ -1,5 +1,6 @@
-/*
 package DeepDive
+
+import kotlin.collections.set
 
 /**
  * ``Graph`` represents a directed graph
@@ -21,7 +22,7 @@ class Graph<VertexType> {
     }
 
     /**
-     * Add an edge between [from] and [to] with edge weight [cost]
+     * Add an edge between [from] and [to] with edge weight [cost], which is a list of [time, southwest, united, spirit]
      */
     fun addEdge(from: VertexType, to: VertexType, cost: Array<Double?>){
         // make sure both points are in vertices
@@ -51,13 +52,13 @@ class Graph<VertexType> {
     }
 
     /**
-     * Prints all edges + their weights nicely
+     * Prints all edges + their various weights
      */
     fun printFullMap(){
-        // Prints it all out very nice with A -> B, weight = x
+        // Prints it all out very nice with A -> B, time = x, __ price = $ __ (x3)
         for ((from, neighbors) in edges){
             for ((to, weight) in neighbors){
-                println("$from -> $to, weight = $weight")
+                println("$from -> $to, time = ${weight[0]} hours, Southwest price = $ ${weight[1]}, United price = $ ${weight[2]}, Spirit price: $ ${weight[3]}")
             }
         }
     }
@@ -71,12 +72,36 @@ class Graph<VertexType> {
     }
 
     /**
-     * The whole thing with finding the shortest paths
+     * Shortest paths algorithm, inputs are start, goal, and what part we're looking at (Southwest, United, Spirit, Any, or ratio (price over time))
      */
-    fun Dijskras(start: VertexType, goal: VertexType): List<VertexType>?{
-        val currentDist = mutableMapOf<VertexType, Double>()
+    fun shortestPath(start: VertexType, goal: VertexType, lookingFor: String): List<VertexType>?{
+        var currentDist = mutableMapOf<VertexType, Double>()
         val prev = mutableMapOf<VertexType, VertexType?>()
         val queue = MinPriorityQueue<VertexType>()
+
+        // set what parameter to check based on input, default to any
+        var param = 4
+        when (lookingFor) { // it recommended making my 'if - else if - else if - else if' into this, that's cool
+            "Southwest" -> {
+                param = 1
+            }
+
+            "United" -> {
+                param = 2
+            }
+
+            "Spirit" -> {
+                param = 3
+            }
+
+            "Any" -> {
+                param = 4
+            }
+
+            "Ratio" -> {
+                param = 5
+            }
+        }
 
         // make distances very big so they're set but not confounding
         for (vertex in vertices) {
@@ -90,25 +115,55 @@ class Graph<VertexType> {
         while (!queue.isEmpty()) {
             // go through our map
             val u = queue.next() ?: break
-
+//            println(" u is $u")   // used for debugging
             if (u == goal) {
                 // if we reached goal, build the path now!
                 val path = mutableListOf<VertexType>()
                 var curr: VertexType? = goal
                 while (curr != null) {
+                    //println(curr)
                     path.add(0, curr)
                     curr = prev[curr]
+//                    println(prev)    <- used for debugging
                 }
                 return path
+
             }
-            // check all neighbors and put them in the queue with their weights
+
+            // check all neighbors and put them in the queue with their weights, based on what we're looking for
             val neighbors = getEdges(u)
             for ((v, weight) in neighbors) {
-                val newDist = currentDist[u]!! + weight
-                if (newDist < currentDist[v]!!) {
-                    currentDist[v] = newDist
-                    prev[v] = u
-                    queue.addWithPriority(v, newDist)
+                if (weight.getOrNull(param) != null && ((param == 1) || (param == 2) || (param == 3))) {
+                    val newDist = currentDist[u]!! + weight[param]!!
+                    require(weight[param]!! >= 0)
+                    if (newDist < currentDist[v]!!) {
+//                        println("found faster path to $v going through $u")   <- used for debugging
+                        currentDist[v] = newDist
+                        prev[v] = u
+                        queue.addWithPriority(v, newDist)
+//                        println(prev)   <- used for debugging
+                    }
+                }
+                else if((param == 4) || (param == 5)) {
+                    val prices = listOf(weight[1], weight[2], weight[3])
+                    var minPrice = prices.filterNotNull().min()
+
+                    if(param == 5){
+                        //println("min price: $minPrice")
+                        //println("weight: ${weight[0]}")
+                        minPrice /= weight[0]!!  // bro i cannot do ANYTHING without it making me safeguard for nulls
+                        //println("ratio: $minPrice")
+                        //println("")
+                    }
+
+                    // yayayay this fixed infinite loop, I was dividing whole new dist by the min price each time instead of just the newly added bit
+                    val newDist = currentDist[u]!! + minPrice
+
+                    if(newDist < currentDist[v]!!) {
+                        currentDist[v] = newDist
+                        prev[v] = u
+                        queue.addWithPriority(v, newDist)
+                    }
                 }
             }
         }
@@ -129,7 +184,7 @@ class MinPriorityQueue<T> {
     }
 
     /**
-     * Add [elem] with at level [priority]
+     * Add [elem] at level [priority]
      */
     fun addWithPriority(elem: T, priority: Double){
         heap.add(Pair<T, Double>(elem, priority))
@@ -160,8 +215,8 @@ class MinPriorityQueue<T> {
      * Adjust the priority of the given element
      * @param elem whose priority should change
      * @param newPriority the priority to use for the element
-     *   the lower the priority the earlier the element int
-     *   the order.
+     *   the lower the priority the earlier the element in
+     *   the order
      */
     fun adjustPriority(elem: T, newPriority: Double){
         val index = indexMap[elem]?: return
@@ -176,7 +231,7 @@ class MinPriorityQueue<T> {
         while (i>0) {
             val parent = (i - 1)/2
 
-            if (heap[i].second < heap[parent].second) {
+            if (heap[i].second < heap[parent].second) {  // second is priority, which is already based on param; I was confused and trying to do a bunch of indexing and stuff
                 val temp = heap[i]
                 heap[i] = heap[parent]
                 heap[parent] = temp
@@ -213,13 +268,11 @@ class MinPriorityQueue<T> {
             i = smallest
         }
     }
-
-
 }
 
 fun main(){
-    // a whooooole lot of flights
-    var flightList = Graph<String>()
+    // a whooooole lot of flights, saved with length, southwest, united, spirit
+    val flightList = Graph<String>()
 
     // from New York
     flightList.addEdge("New York", "Los Angeles", arrayOf(6.0, null, 317.0, 197.0))
@@ -368,90 +421,111 @@ fun main(){
     flightList.addEdge("Phoenix", "Denver", arrayOf(1.7, 154.0, 287.0, null))
 
     // from Philadelphia
-    flightList.addEdge("Philadelphia", "New York", arrayOf(6.0, null, null, null))
-    flightList.addEdge("Philadelphia", "Los Angeles", arrayOf(6.0, null, 317.0, 197.0))
-    flightList.addEdge("Philadelphia", "San Diego", arrayOf(6.0, null, 357.0, null))
-    flightList.addEdge("Philadelphia", "San Francisco", arrayOf(6.5, null, 461.0, null))
-    flightList.addEdge("Philadelphia", "Chicago", arrayOf(2.5, 174.0, 276.0, 55.0))
-    flightList.addEdge("Philadelphia", "Houston", arrayOf(4.0, 179.0, 336.0, 127.0))
-    flightList.addEdge("Philadelphia", "San Antonio", arrayOf(4.2, null, 279.0, 194.0))
-    flightList.addEdge("Philadelphia", "Dallas", arrayOf(3.7, 172.0, 378.0, 132.0))
-    flightList.addEdge("Philadelphia", "Austin", arrayOf(4.2, null, 296.0, 132.0))
-    flightList.addEdge("Philadelphia", "Phoenix", arrayOf(5.5, null, 307.0, 210.0))
-    flightList.addEdge("Philadelphia", "Miami", arrayOf(3.2, null, 167.0, 87.0))
-    flightList.addEdge("Philadelphia", "Seattle", arrayOf(6.2, null, 463.0, null))
-    flightList.addEdge("Philadelphia", "Denver", arrayOf(4.3, 209.0, 296.0, null))
+    flightList.addEdge("Philadelphia", "San Francisco", arrayOf(6.2, null, 360.0, null))
+    flightList.addEdge("Philadelphia", "Chicago", arrayOf(2.3, 198.0, 395.0, 100.0))
+    flightList.addEdge("Philadelphia", "Houston", arrayOf(3.7, null, 287.0, null))
+    flightList.addEdge("Philadelphia", "San Antonio", arrayOf(3.7, null, null, 138.0))
+    flightList.addEdge("Philadelphia", "Dallas", arrayOf(3.2, 188.0, null, 113.0))
+    flightList.addEdge("Philadelphia", "Miami", arrayOf(2.8, null, null, 39.0))
+    flightList.addEdge("Philadelphia", "Denver", arrayOf(4.0, 250.0, 287.0, null))
     flightList.addEdge("Philadelphia", "Boston", arrayOf(1.3, null, null, 351.0))
 
     // from Miami
-    flightList.addEdge("Miami", "New York", arrayOf(6.0, null, null, null))
-    flightList.addEdge("Miami", "Los Angeles", arrayOf(6.0, null, 317.0, 197.0))
-    flightList.addEdge("Miami", "San Diego", arrayOf(6.0, null, 357.0, null))
-    flightList.addEdge("Miami", "San Francisco", arrayOf(6.5, null, 461.0, null))
-    flightList.addEdge("Miami", "Chicago", arrayOf(2.5, 174.0, 276.0, 55.0))
-    flightList.addEdge("Miami", "Houston", arrayOf(4.0, 179.0, 336.0, 127.0))
-    flightList.addEdge("Miami", "San Antonio", arrayOf(4.2, null, 279.0, 194.0))
-    flightList.addEdge("Miami", "Dallas", arrayOf(3.7, 172.0, 378.0, 132.0))
-    flightList.addEdge("Miami", "Austin", arrayOf(4.2, null, 296.0, 132.0))
-    flightList.addEdge("Miami", "Phoenix", arrayOf(5.5, null, 307.0, 210.0))
-    flightList.addEdge("Miami", "Philadelphia", arrayOf(1.2, null, null, null))
-    flightList.addEdge("Miami", "Seattle", arrayOf(6.2, null, 463.0, null))
-    flightList.addEdge("Miami", "Denver", arrayOf(4.3, 209.0, 296.0, null))
-    flightList.addEdge("Miami", "Boston", arrayOf(1.2, null, 173.0, 222.0))
+    flightList.addEdge("Miami", "New York", arrayOf(2.8, null, 167.0, 87.0))
+    flightList.addEdge("Miami", "Los Angeles", arrayOf(5.7, null, null, 113.0))
+    flightList.addEdge("Miami", "San Francisco", arrayOf(6.2, null, 259.0, null))
+    flightList.addEdge("Miami", "Chicago", arrayOf(3.3, 197.0, 353.0, 54.0))
+    flightList.addEdge("Miami", "Houston", arrayOf(2.8, 249.0, 417.0, 48.0))
+    flightList.addEdge("Miami", "Dallas", arrayOf(3.0, 170.0, null, 49.0))
+    flightList.addEdge("Miami", "Austin", arrayOf(3.0, 154.0, null, null))
+    flightList.addEdge("Miami", "Phoenix", arrayOf(5.0, null, null, 324.0))
+    flightList.addEdge("Miami", "Philadelphia", arrayOf(2.7, null, null, 39.0))
+    flightList.addEdge("Miami", "Denver", arrayOf(4.5, 250.0, 499.0, null))
 
     // from Seattle
-    flightList.addEdge("Seattle", "New York", arrayOf(6.0, null, null, null))
-    flightList.addEdge("Seattle", "Los Angeles", arrayOf(6.0, null, 317.0, 197.0))
-    flightList.addEdge("Seattle", "San Diego", arrayOf(6.0, null, 357.0, null))
-    flightList.addEdge("Seattle", "San Francisco", arrayOf(6.5, null, 461.0, null))
-    flightList.addEdge("Seattle", "Chicago", arrayOf(2.5, 174.0, 276.0, 55.0))
-    flightList.addEdge("Seattle", "Houston", arrayOf(4.0, 179.0, 336.0, 127.0))
-    flightList.addEdge("Seattle", "San Antonio", arrayOf(4.2, null, 279.0, 194.0))
-    flightList.addEdge("Seattle", "Dallas", arrayOf(3.7, 172.0, 378.0, 132.0))
-    flightList.addEdge("Seattle", "Austin", arrayOf(4.2, null, 296.0, 132.0))
-    flightList.addEdge("Seattle", "Phoenix", arrayOf(5.5, null, 307.0, 210.0))
-    flightList.addEdge("Seattle", "Philadelphia", arrayOf(1.2, null, null, null))
-    flightList.addEdge("Seattle", "Miami", arrayOf(3.2, null, 167.0, 87.0))
-    flightList.addEdge("Seattle", "Denver", arrayOf(4.3, 209.0, 296.0, null))
-    flightList.addEdge("Seattle", "Boston", arrayOf(1.2, null, 173.0, 222.0))
+    flightList.addEdge("Seattle", "New York", arrayOf(5.2, null, 463.0, null))
+    flightList.addEdge("Seattle", "Los Angeles", arrayOf(2.7, 199.0, 257.0, null))
+    flightList.addEdge("Seattle", "San Diego", arrayOf(2.7, 159.0, null, null))
+    flightList.addEdge("Seattle", "San Francisco", arrayOf(2.2, null, 197.0, null))
+    flightList.addEdge("Seattle", "Chicago", arrayOf(4.0, 239.0, 355.0, null))
+    flightList.addEdge("Seattle", "Houston", arrayOf(4.2, null, 407.0, null))
+    flightList.addEdge("Seattle", "Dallas", arrayOf(3.8, 289.0, null, null))
+    flightList.addEdge("Seattle", "Phoenix", arrayOf(2.8, 165.0, null, null))
+    flightList.addEdge("Seattle", "Denver", arrayOf(2.7, 189.0, 237.0, null))
 
     // from Denver
-    flightList.addEdge("Denver", "New York", arrayOf(6.0, null, null, null))
-    flightList.addEdge("Denver", "Los Angeles", arrayOf(6.0, null, 317.0, 197.0))
-    flightList.addEdge("Denver", "San Diego", arrayOf(6.0, null, 357.0, null))
-    flightList.addEdge("Denver", "San Francisco", arrayOf(6.5, null, 461.0, null))
-    flightList.addEdge("Denver", "Chicago", arrayOf(2.5, 174.0, 276.0, 55.0))
-    flightList.addEdge("Denver", "Houston", arrayOf(4.0, 179.0, 336.0, 127.0))
-    flightList.addEdge("Denver", "San Antonio", arrayOf(4.2, null, 279.0, 194.0))
-    flightList.addEdge("Denver", "Dallas", arrayOf(3.7, 172.0, 378.0, 132.0))
-    flightList.addEdge("Denver", "Austin", arrayOf(4.2, null, 296.0, 132.0))
-    flightList.addEdge("Denver", "Phoenix", arrayOf(5.5, null, 307.0, 210.0))
-    flightList.addEdge("Denver", "Philadelphia", arrayOf(1.2, null, null, null))
-    flightList.addEdge("Denver", "Miami", arrayOf(3.2, null, 167.0, 87.0))
-    flightList.addEdge("Denver", "Seattle", arrayOf(6.2, null, 463.0, null))
-    flightList.addEdge("Denver", "Boston", arrayOf(1.2, null, 173.0, 222.0))
+    flightList.addEdge("Denver", "New York", arrayOf(3.7, 209.0, 296.0, null))
+    flightList.addEdge("Denver", "Los Angeles", arrayOf(2.5, 165.0, 329.0, null))
+    flightList.addEdge("Denver", "San Diego", arrayOf(2.3, 159.0, 277.0, null))
+    flightList.addEdge("Denver", "San Francisco", arrayOf(2.7, 179.0, 297.0, null))
+    flightList.addEdge("Denver", "Chicago", arrayOf(2.3, 143.0, 225.0, null))
+    flightList.addEdge("Denver", "Houston", arrayOf(2.3, 154.0, 307.0, null))
+    flightList.addEdge("Denver", "San Antonio", arrayOf(2.0, 209.0, 417.0, null))
+    flightList.addEdge("Denver", "Dallas", arrayOf(1.8, 134.0, 267.0, null))
+    flightList.addEdge("Denver", "Austin", arrayOf(2.0, 154.0, 287.0, null))
+    flightList.addEdge("Denver", "Phoenix", arrayOf(1.8, 154.0, 287.0, null))
+    flightList.addEdge("Denver", "Philadelphia", arrayOf(3.5, 250.0, 287.0, null))
+    flightList.addEdge("Denver", "Miami", arrayOf(3.8, 250.0, 499.0, null))
+    flightList.addEdge("Denver", "Seattle", arrayOf(2.8, 189.0, 237.0, null))
+    flightList.addEdge("Denver", "Boston", arrayOf(3.8, 240.0, 282.0, null))
 
     // from Boston
-    flightList.addEdge("Boston", "New York", arrayOf(6.0, null, null, null))
-    flightList.addEdge("Boston", "Los Angeles", arrayOf(6.0, null, 317.0, 197.0))
-    flightList.addEdge("Boston", "San Diego", arrayOf(6.0, null, 357.0, null))
-    flightList.addEdge("Boston", "San Francisco", arrayOf(6.5, null, 461.0, null))
-    flightList.addEdge("Boston", "Chicago", arrayOf(2.5, 174.0, 276.0, 55.0))
-    flightList.addEdge("Boston", "Houston", arrayOf(4.0, 179.0, 336.0, 127.0))
-    flightList.addEdge("Boston", "San Antonio", arrayOf(4.2, null, 279.0, 194.0))
-    flightList.addEdge("Boston", "Dallas", arrayOf(3.7, 172.0, 378.0, 132.0))
-    flightList.addEdge("Boston", "Austin", arrayOf(4.2, null, 296.0, 132.0))
-    flightList.addEdge("Boston", "Phoenix", arrayOf(5.5, null, 307.0, 210.0))
-    flightList.addEdge("Boston", "Philadelphia", arrayOf(1.2, null, null, null))
-    flightList.addEdge("Boston", "Miami", arrayOf(3.2, null, 167.0, 87.0))
-    flightList.addEdge("Boston", "Seattle", arrayOf(6.2, null, 463.0, null))
-    flightList.addEdge("Boston", "Denver", arrayOf(4.3, 209.0, 296.0, null))
+    flightList.addEdge("Boston", "New York", arrayOf(1.3, null, 173.0, 222.0))
+    flightList.addEdge("Boston", "Los Angeles", arrayOf(6.2, null, 380.0, 182.0))
+    flightList.addEdge("Boston", "San Francisco", arrayOf(6.5, null, 273.0, null))
+    flightList.addEdge("Boston", "Chicago", arrayOf(2.8, 179.0, 220.0, 331.0))
+    flightList.addEdge("Boston", "Houston", arrayOf(4.2, null, 297.0, 338.0))
+    flightList.addEdge("Boston", "Dallas", arrayOf(3.8, 194.0, null, 263.0))
+    flightList.addEdge("Boston", "Austin", arrayOf(4.5, null, null, 395.0))
+    flightList.addEdge("Boston", "Philadelphia", arrayOf(1.5, null, null, 351.0))
+    flightList.addEdge("Boston", "Denver", arrayOf(4.5, 240.0, 282.0, null))
 
 
 
     // using functions
-    println(flightList.Dijskras("", "Alex F"))
-    println(flightList.Dijskras("Lea", "Olin"))
-    println(flightList.Dijskras("Lea", "Yana"))
+//    flightList.printFullMap()
+    //random lil tests
+    println(flightList.shortestPath("Houston", "Boston", "Southwest")) //looking for shortest path (well ig cheapest) btwn places that don't have direct
+    println(flightList.shortestPath("Boston", "Houston", "Southwest"))
+    println(flightList.shortestPath("Boston", "Seattle", "United"))
+    println(flightList.shortestPath("New York", "Philadelphia", "Spirit"))
+    println(flightList.shortestPath("Miami", "Seattle", "Ratio"))
+    println(flightList.shortestPath("Boston", "Houston", "Ratio"))
+    println(flightList.shortestPath("Houston", "Boston", "Ratio")) //this is the one that originally tweaked out, fixed w/ the ratio fix part
+    println()
+
+    //across whole country, a path none of them have direct
+    println("Various tests of Los Angeles -> Philadelphia")
+    println("Southwest:")
+    println(flightList.shortestPath("Los Angeles", "Philadelphia", "Southwest"))
+    println("United:")
+    println(flightList.shortestPath("Los Angeles", "Philadelphia", "United"))
+    println("Spirit:")
+    println(flightList.shortestPath("Los Angeles", "Philadelphia", "Spirit"))
+    println("Any:")
+    println(flightList.shortestPath("Los Angeles", "Philadelphia", "Any"))
+    println("Ratio:")
+    println(flightList.shortestPath("Los Angeles", "Philadelphia", "Ratio")) //infinite looped before, fixed now!
+    println()
+
+    // user input part now, making it a loop that repeats until cancelled
+    println("Welcome! This is my program for finding the most cost-efficient path between two cities based on your preferred parameters. ")
+    println("Follow the prompts and type 'Cancel' into the first prompt whenever you're done!")
+    println()
+    while (true) {
+        println("Where are you departing from? (pls capitalize first letter) ")
+        val userStart = readln()
+        if (userStart == "Cancel"){
+            break
+        }
+        println("Where are you headed? ")
+        val userGoal = readln()
+        println("What airline do you prefer? ")
+        println("[Southwest, United, Spirit, Any, or Ratio (price / distance)] ")
+        val userPref = readln()
+        println("Recommended path:")
+        println(flightList.shortestPath(userStart, userGoal, userPref))
+        println()
+    }
+    println("Thank you! Have a nice day :)")
 }
- */
