@@ -1,4 +1,6 @@
 import java.io.File
+import kotlin.random.Random
+
 /**
  * Represents a mapping of keys to values.
  * @param K the type of the keys
@@ -6,6 +8,9 @@ import java.io.File
  */
 class AssociativeArray<K, V> {
     val hashTable: Array<MutableList<Pair<K, V>>> = Array(53) { mutableListOf() }
+    // random vals for hashing function later
+    val a = (1..52).random()
+    val b = (0..52).random()
 
     /**
      * Insert the mapping from the key, [key], to the value, [value].
@@ -98,9 +103,8 @@ class AssociativeArray<K, V> {
     fun hash(key: K): Int{
         val keyString = key.toString()
         var hash = 0
-        val prime = 31
         for (char in keyString){
-            hash = (hash * prime + char.code) % 53
+            hash = (hash+(a * char.code + b)) % 53
         }
         return hash
     }
@@ -158,6 +162,7 @@ fun main(){
         println()
     }
     printSorted("the")
+    printSorted("lion")
     printSorted("cat")
     printSorted("fox")
     printSorted("and")
